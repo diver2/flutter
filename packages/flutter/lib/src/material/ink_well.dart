@@ -18,6 +18,8 @@ import 'material.dart';
 import 'material_state.dart';
 import 'theme.dart';
 
+const int logbookHighlighPressedTime = 75; //200 original value
+
 /// An ink feature that displays a [color] "splash" in response to a user
 /// gesture that can be confirmed or canceled.
 ///
@@ -41,29 +43,28 @@ abstract class InteractiveInkFeature extends InkFeature {
     @required RenderBox referenceBox,
     Color color,
     VoidCallback onRemoved,
-  }) : assert(controller != null),
-       assert(referenceBox != null),
-       _color = color,
-       super(controller: controller, referenceBox: referenceBox, onRemoved: onRemoved);
+  })  : assert(controller != null),
+        assert(referenceBox != null),
+        _color = color,
+        super(controller: controller, referenceBox: referenceBox, onRemoved: onRemoved);
 
   /// Called when the user input that triggered this feature's appearance was confirmed.
   ///
   /// Typically causes the ink to propagate faster across the material. By default this
   /// method does nothing.
-  void confirm() { }
+  void confirm() {}
 
   /// Called when the user input that triggered this feature's appearance was canceled.
   ///
   /// Typically causes the ink to gradually disappear. By default this method does
   /// nothing.
-  void cancel() { }
+  void cancel() {}
 
   /// The ink's color.
   Color get color => _color;
   Color _color;
   set color(Color value) {
-    if (value == _color)
-      return;
+    if (value == _color) return;
     _color = value;
     controller.markNeedsPaint();
   }
@@ -109,7 +110,7 @@ abstract class InteractiveInkFeature extends InkFeature {
     ShapeBorder customBorder,
     BorderRadius borderRadius = BorderRadius.zero,
     RectCallback clipCallback,
-    }) {
+  }) {
     assert(canvas != null);
     assert(transform != null);
     assert(paint != null);
@@ -131,8 +132,10 @@ abstract class InteractiveInkFeature extends InkFeature {
       } else if (borderRadius != BorderRadius.zero) {
         canvas.clipRRect(RRect.fromRectAndCorners(
           rect,
-          topLeft: borderRadius.topLeft, topRight: borderRadius.topRight,
-          bottomLeft: borderRadius.bottomLeft, bottomRight: borderRadius.bottomRight,
+          topLeft: borderRadius.topLeft,
+          topRight: borderRadius.topRight,
+          bottomLeft: borderRadius.bottomLeft,
+          bottomRight: borderRadius.bottomRight,
         ));
       } else {
         canvas.clipRect(rect);
@@ -292,6 +295,7 @@ class InkResponse extends StatelessWidget {
   const InkResponse({
     Key key,
     this.child,
+    this.logbookBehavior = true,
     this.onTap,
     this.onTapDown,
     this.onTapCancel,
@@ -317,13 +321,13 @@ class InkResponse extends StatelessWidget {
     this.canRequestFocus = true,
     this.onFocusChange,
     this.autofocus = false,
-  }) : assert(containedInkWell != null),
-       assert(highlightShape != null),
-       assert(enableFeedback != null),
-       assert(excludeFromSemantics != null),
-       assert(autofocus != null),
-       assert(canRequestFocus != null),
-       super(key: key);
+  })  : assert(containedInkWell != null),
+        assert(highlightShape != null),
+        assert(enableFeedback != null),
+        assert(excludeFromSemantics != null),
+        assert(autofocus != null),
+        assert(canRequestFocus != null),
+        super(key: key);
 
   /// The widget below this widget in the tree.
   ///
@@ -562,6 +566,9 @@ class InkResponse extends StatelessWidget {
   /// {@macro flutter.widgets.Focus.canRequestFocus}
   final bool canRequestFocus;
 
+  /// am I using logbook behavior
+  final bool logbookBehavior;
+
   /// The rectangle to use for the highlight effect and for clipping
   /// the splash effects if [containedInkWell] is true.
   ///
@@ -581,6 +588,7 @@ class InkResponse extends StatelessWidget {
     return _InkResponseStateWidget(
       child: child,
       onTap: onTap,
+      logbookBehavior: logbookBehavior,
       onTapDown: onTapDown,
       onTapCancel: onTapCancel,
       onDoubleTap: onDoubleTap,
@@ -630,6 +638,7 @@ class _InkResponseStateWidget extends StatefulWidget {
   const _InkResponseStateWidget({
     this.child,
     this.onTap,
+    this.logbookBehavior = true,
     this.onTapDown,
     this.onTapCancel,
     this.onDoubleTap,
@@ -657,12 +666,12 @@ class _InkResponseStateWidget extends StatefulWidget {
     this.parentState,
     this.getRectCallback,
     this.debugCheckContext,
-  }) : assert(containedInkWell != null),
-       assert(highlightShape != null),
-       assert(enableFeedback != null),
-       assert(excludeFromSemantics != null),
-       assert(autofocus != null),
-       assert(canRequestFocus != null);
+  })  : assert(containedInkWell != null),
+        assert(highlightShape != null),
+        assert(enableFeedback != null),
+        assert(excludeFromSemantics != null),
+        assert(autofocus != null),
+        assert(canRequestFocus != null);
 
   final Widget child;
   final GestureTapCallback onTap;
@@ -693,6 +702,7 @@ class _InkResponseStateWidget extends StatefulWidget {
   final _ParentInkResponseState parentState;
   final _GetRectCallback getRectCallback;
   final _CheckContext debugCheckContext;
+  final bool logbookBehavior;
 
   @override
   _InkResponseState createState() => _InkResponseState();
@@ -735,6 +745,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   bool _hovering = false;
   final Map<_HighlightType, InkHighlight> _highlights = <_HighlightType, InkHighlight>{};
   Map<Type, Action<Intent>> _actionMap;
+  Stopwatch _tapTimer = Stopwatch(); //Logbook LOGBOOK logbook
 
   bool get highlightsExist => _highlights.values.where((InkHighlight highlight) => highlight != null).isNotEmpty;
 
@@ -753,9 +764,11 @@ class _InkResponseState extends State<_InkResponseStateWidget>
       widget.parentState?.markChildInkResponsePressed(this, nowAnyPressed);
     }
   }
+
   bool get _anyChildInkResponsePressed => _activeChildren.isNotEmpty;
 
   void _handleAction(ActivateIntent intent) {
+    //print("HANDLE ACTION");
     _startSplash(context: context);
     _handleTap(context);
   }
@@ -813,7 +826,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   Duration getFadeDurationForType(_HighlightType type) {
     switch (type) {
       case _HighlightType.pressed:
-        return const Duration(milliseconds: 200);
+        return Duration(milliseconds: (widget.logbookBehavior) ? logbookHighlighPressedTime : 200);
       case _HighlightType.hover:
       case _HighlightType.focus:
         return const Duration(milliseconds: 50);
@@ -822,7 +835,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     return null;
   }
 
-  void updateHighlight(_HighlightType type, { @required bool value, bool callOnHover = true }) {
+  void updateHighlight(_HighlightType type, {@required bool value, bool callOnHover = true}) {
     final InkHighlight highlight = _highlights[type];
     void handleInkRemoval() {
       assert(_highlights[type] != null);
@@ -833,8 +846,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     if (type == _HighlightType.pressed) {
       widget.parentState?.markChildInkResponsePressed(this, value);
     }
-    if (value == (highlight != null && highlight.active))
-      return;
+    if (value == (highlight != null && highlight.active)) return;
     if (value) {
       if (highlight == null) {
         final RenderBox referenceBox = context.findRenderObject() as RenderBox;
@@ -862,12 +874,10 @@ class _InkResponseState extends State<_InkResponseStateWidget>
 
     switch (type) {
       case _HighlightType.pressed:
-        if (widget.onHighlightChanged != null)
-          widget.onHighlightChanged(value);
+        if (widget.onHighlightChanged != null) widget.onHighlightChanged(value);
         break;
       case _HighlightType.hover:
-        if (callOnHover && widget.onHover != null)
-          widget.onHover(value);
+        if (callOnHover && widget.onHover != null) widget.onHover(value);
         break;
       case _HighlightType.focus:
         break;
@@ -879,7 +889,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     final RenderBox referenceBox = context.findRenderObject() as RenderBox;
     final Offset position = referenceBox.globalToLocal(globalPosition);
     const Set<MaterialState> pressed = <MaterialState>{MaterialState.pressed};
-    final Color color =  widget.overlayColor?.resolve(pressed) ?? widget.splashColor ?? Theme.of(context).splashColor;
+    final Color color = widget.overlayColor?.resolve(pressed) ?? widget.splashColor ?? Theme.of(context).splashColor;
     final RectCallback rectCallback = widget.containedInkWell ? widget.getRectCallback(referenceBox) : null;
     final BorderRadius borderRadius = widget.borderRadius;
     final ShapeBorder customBorder = widget.customBorder;
@@ -889,8 +899,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
       if (_splashes != null) {
         assert(_splashes.contains(splash));
         _splashes.remove(splash);
-        if (_currentSplash == splash)
-          _currentSplash = null;
+        if (_currentSplash == splash) _currentSplash = null;
         updateKeepAlive();
       } // else we're probably in deactivate()
     }
@@ -956,11 +965,22 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   }
 
   void _handleTapDown(TapDownDetails details) {
-    if (_anyChildInkResponsePressed)
-      return;
-    _startSplash(details: details);
-    if (widget.onTapDown != null) {
-      widget.onTapDown(details);
+    if (_anyChildInkResponsePressed) return;
+    //print("HANDLE TAP DOWN");
+    if (!widget.logbookBehavior) {
+      _startSplash(details: details);
+      if (widget.onTapDown != null) {
+        widget.onTapDown(details);
+      }
+    } else {
+      //print("LOGBOOK HIGHLIGHT");
+      updateHighlight(_HighlightType.pressed, value: true);
+      _tapTimer.stop();
+      _tapTimer.reset();
+      _tapTimer.start();
+      if (widget.onTapDown != null) {
+        widget.onTapDown(details);
+      }
     }
   }
 
@@ -986,11 +1006,46 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   void _handleTap(BuildContext context) {
     _currentSplash?.confirm();
     _currentSplash = null;
-    updateHighlight(_HighlightType.pressed, value: false);
-    if (widget.onTap != null) {
-      if (widget.enableFeedback)
-        Feedback.forTap(context);
-      widget.onTap();
+    if (!widget.logbookBehavior) {
+      updateHighlight(_HighlightType.pressed, value: false);
+      if (widget.onTap != null) {
+        if (widget.enableFeedback) Feedback.forTap(context);
+        widget.onTap();
+      }
+    } else {
+      //LOGBOOK this exists to remove the highlight
+      //print("_HANDLE TAP (only called when up)");
+      if (_tapTimer.elapsedMilliseconds < logbookHighlighPressedTime) {
+        Future.delayed(Duration(milliseconds: logbookHighlighPressedTime ~/ 2), () {
+          if (_tapTimer.elapsedMilliseconds < logbookHighlighPressedTime) {
+            Future.delayed(Duration(milliseconds: logbookHighlighPressedTime ~/ 2.5), () {
+              updateHighlight(_HighlightType.pressed, value: false);
+              _tapTimer.stop();
+              _tapTimer.reset();
+              if (widget.onTap != null) {
+                if (widget.enableFeedback) Feedback.forTap(context);
+                widget.onTap();
+              }
+            });
+          } else {
+            updateHighlight(_HighlightType.pressed, value: false);
+            _tapTimer.stop();
+            _tapTimer.reset();
+            if (widget.onTap != null) {
+              if (widget.enableFeedback) Feedback.forTap(context);
+              widget.onTap();
+            }
+          }
+        });
+      } else {
+        updateHighlight(_HighlightType.pressed, value: false);
+        _tapTimer.stop();
+        _tapTimer.reset();
+        if (widget.onTap != null) {
+          if (widget.enableFeedback) Feedback.forTap(context);
+          widget.onTap();
+        }
+      }
     }
   }
 
@@ -1006,16 +1061,14 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   void _handleDoubleTap() {
     _currentSplash?.confirm();
     _currentSplash = null;
-    if (widget.onDoubleTap != null)
-      widget.onDoubleTap();
+    if (widget.onDoubleTap != null) widget.onDoubleTap();
   }
 
   void _handleLongPress(BuildContext context) {
     _currentSplash?.confirm();
     _currentSplash = null;
     if (widget.onLongPress != null) {
-      if (widget.enableFeedback)
-        Feedback.forLongPress(context);
+      if (widget.enableFeedback) Feedback.forLongPress(context);
       widget.onLongPress();
     }
   }
@@ -1025,8 +1078,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     if (_splashes != null) {
       final Set<InteractiveInkFeature> splashes = _splashes;
       _splashes = null;
-      for (final InteractiveInkFeature splash in splashes)
-        splash.dispose();
+      for (final InteractiveInkFeature splash in splashes) splash.dispose();
       _currentSplash = null;
     }
     assert(_currentSplash == null);
@@ -1083,7 +1135,8 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     }
 
     const Set<MaterialState> pressed = <MaterialState>{MaterialState.pressed};
-    _currentSplash?.color = widget.overlayColor?.resolve(pressed) ?? widget.splashColor ?? Theme.of(context).splashColor;
+    _currentSplash?.color =
+        widget.overlayColor?.resolve(pressed) ?? widget.splashColor ?? Theme.of(context).splashColor;
 
     final MouseCursor effectiveMouseCursor = MaterialStateProperty.resolveAs<MouseCursor>(
       widget.mouseCursor ?? MaterialStateMouseCursor.clickable,
@@ -1244,33 +1297,35 @@ class InkWell extends InkResponse {
     bool canRequestFocus = true,
     ValueChanged<bool> onFocusChange,
     bool autofocus = false,
+    bool logbookBehavior = true,
   }) : super(
-    key: key,
-    child: child,
-    onTap: onTap,
-    onDoubleTap: onDoubleTap,
-    onLongPress: onLongPress,
-    onTapDown: onTapDown,
-    onTapCancel: onTapCancel,
-    onHighlightChanged: onHighlightChanged,
-    onHover: onHover,
-    mouseCursor: mouseCursor,
-    containedInkWell: true,
-    highlightShape: BoxShape.rectangle,
-    focusColor: focusColor,
-    hoverColor: hoverColor,
-    highlightColor: highlightColor,
-    overlayColor: overlayColor,
-    splashColor: splashColor,
-    splashFactory: splashFactory,
-    radius: radius,
-    borderRadius: borderRadius,
-    customBorder: customBorder,
-    enableFeedback: enableFeedback ?? true,
-    excludeFromSemantics: excludeFromSemantics ?? false,
-    focusNode: focusNode,
-    canRequestFocus: canRequestFocus ?? true,
-    onFocusChange: onFocusChange,
-    autofocus: autofocus ?? false,
-  );
+          key: key,
+          child: child,
+          onTap: onTap,
+          onDoubleTap: onDoubleTap,
+          onLongPress: onLongPress,
+          onTapDown: onTapDown,
+          onTapCancel: onTapCancel,
+          onHighlightChanged: onHighlightChanged,
+          onHover: onHover,
+          mouseCursor: mouseCursor,
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+          focusColor: focusColor,
+          hoverColor: hoverColor,
+          highlightColor: highlightColor,
+          overlayColor: overlayColor,
+          splashColor: splashColor,
+          splashFactory: splashFactory,
+          radius: radius,
+          borderRadius: borderRadius,
+          customBorder: customBorder,
+          enableFeedback: enableFeedback ?? true,
+          excludeFromSemantics: excludeFromSemantics ?? false,
+          focusNode: focusNode,
+          canRequestFocus: canRequestFocus ?? true,
+          onFocusChange: onFocusChange,
+          autofocus: autofocus ?? false,
+          logbookBehavior: logbookBehavior ?? true,
+        );
 }
