@@ -833,7 +833,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   Duration getFadeDurationForType(_HighlightType type) {
     switch (type) {
       case _HighlightType.pressed:
-        return Duration(milliseconds: (widget.logbookBehavior) ? highlightPressedTime : 200);
+        return Duration(milliseconds: (widget.logbookBehavior) ? widget.highlightPressedTime : 200);
       case _HighlightType.hover:
       case _HighlightType.focus:
         return const Duration(milliseconds: 50);
@@ -1022,10 +1022,10 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     } else {
       //LOGBOOK this exists to remove the highlight
       //print("_HANDLE TAP (only called when up)");
-      if (_tapTimer.elapsedMilliseconds < logbookHighlightPressedTime) {
-        Future.delayed(Duration(milliseconds: logbookHighlightPressedTime ~/ 2), () {
-          if (_tapTimer.elapsedMilliseconds < logbookHighlightPressedTime) {
-            Future.delayed(Duration(milliseconds: logbookHighlightPressedTime ~/ 2.5), () {
+      if (_tapTimer.elapsedMilliseconds < widget.highlightPressedTime) {
+        Future.delayed(Duration(milliseconds: widget.highlightPressedTime ~/ 2), () {
+          if (_tapTimer.elapsedMilliseconds < widget.highlightPressedTime) {
+            Future.delayed(Duration(milliseconds: widget.highlightPressedTime ~/ 2.5), () {
               updateHighlight(_HighlightType.pressed, value: false);
               _tapTimer.stop();
               _tapTimer.reset();
