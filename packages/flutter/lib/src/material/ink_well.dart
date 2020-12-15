@@ -18,7 +18,7 @@ import 'material.dart';
 import 'material_state.dart';
 import 'theme.dart';
 
-const int logbookHighlighPressedTime = 75; //200 original value
+const int logbookHighlightPressedTime = 75; //200 original value
 
 /// An ink feature that displays a [color] "splash" in response to a user
 /// gesture that can be confirmed or canceled.
@@ -320,6 +320,7 @@ class InkResponse extends StatelessWidget {
     this.focusNode,
     this.canRequestFocus = true,
     this.onFocusChange,
+    this.highlightPressedTime = logbookHighlightPressedTime,
     this.autofocus = false,
   })  : assert(containedInkWell != null),
         assert(highlightShape != null),
@@ -349,6 +350,9 @@ class InkResponse extends StatelessWidget {
 
   /// Called when the user long-presses on this part of the material.
   final GestureLongPressCallback onLongPress;
+
+  /// logbook - highlight pressed time
+  final int highlightPressedTime;
 
   /// Called when this part of the material either becomes highlighted or stops
   /// being highlighted.
@@ -589,6 +593,7 @@ class InkResponse extends StatelessWidget {
       child: child,
       onTap: onTap,
       logbookBehavior: logbookBehavior,
+      highlightPressedTime: highlightPressedTime,
       onTapDown: onTapDown,
       onTapCancel: onTapCancel,
       onDoubleTap: onDoubleTap,
@@ -666,6 +671,7 @@ class _InkResponseStateWidget extends StatefulWidget {
     this.parentState,
     this.getRectCallback,
     this.debugCheckContext,
+    this.highlightPressedTime = logbookHighlightPressedTime,
   })  : assert(containedInkWell != null),
         assert(highlightShape != null),
         assert(enableFeedback != null),
@@ -703,6 +709,7 @@ class _InkResponseStateWidget extends StatefulWidget {
   final _GetRectCallback getRectCallback;
   final _CheckContext debugCheckContext;
   final bool logbookBehavior;
+  final int highlightPressedTime;
 
   @override
   _InkResponseState createState() => _InkResponseState();
@@ -826,7 +833,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   Duration getFadeDurationForType(_HighlightType type) {
     switch (type) {
       case _HighlightType.pressed:
-        return Duration(milliseconds: (widget.logbookBehavior) ? logbookHighlighPressedTime : 200);
+        return Duration(milliseconds: (widget.logbookBehavior) ? highLightPressedTime : 200);
       case _HighlightType.hover:
       case _HighlightType.focus:
         return const Duration(milliseconds: 50);
@@ -1015,10 +1022,10 @@ class _InkResponseState extends State<_InkResponseStateWidget>
     } else {
       //LOGBOOK this exists to remove the highlight
       //print("_HANDLE TAP (only called when up)");
-      if (_tapTimer.elapsedMilliseconds < logbookHighlighPressedTime) {
-        Future.delayed(Duration(milliseconds: logbookHighlighPressedTime ~/ 2), () {
-          if (_tapTimer.elapsedMilliseconds < logbookHighlighPressedTime) {
-            Future.delayed(Duration(milliseconds: logbookHighlighPressedTime ~/ 2.5), () {
+      if (_tapTimer.elapsedMilliseconds < logbookHighlightPressedTime) {
+        Future.delayed(Duration(milliseconds: logbookHighlightPressedTime ~/ 2), () {
+          if (_tapTimer.elapsedMilliseconds < logbookHighlightPressedTime) {
+            Future.delayed(Duration(milliseconds: logbookHighlightPressedTime ~/ 2.5), () {
               updateHighlight(_HighlightType.pressed, value: false);
               _tapTimer.stop();
               _tapTimer.reset();
@@ -1298,6 +1305,7 @@ class InkWell extends InkResponse {
     ValueChanged<bool> onFocusChange,
     bool autofocus = false,
     bool logbookBehavior = true,
+    int highlightPressedTime = logbookHighlightPressedTime,
   }) : super(
           key: key,
           child: child,
@@ -1327,5 +1335,6 @@ class InkWell extends InkResponse {
           onFocusChange: onFocusChange,
           autofocus: autofocus ?? false,
           logbookBehavior: logbookBehavior ?? true,
+          highlightPressedTime: highlightPressedTime ?? logbookHighlightPressedTime,
         );
 }
