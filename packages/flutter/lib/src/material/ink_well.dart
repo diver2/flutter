@@ -833,7 +833,7 @@ class _InkResponseState extends State<_InkResponseStateWidget>
   Duration getFadeDurationForType(_HighlightType type) {
     switch (type) {
       case _HighlightType.pressed:
-        return Duration(milliseconds: (widget.logbookBehavior) ? highLightPressedTime : 200);
+        return Duration(milliseconds: (widget.logbookBehavior) ? highlightPressedTime : 200);
       case _HighlightType.hover:
       case _HighlightType.focus:
         return const Duration(milliseconds: 50);
